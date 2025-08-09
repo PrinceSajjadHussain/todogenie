@@ -21,7 +21,8 @@ Deno.serve(async (req: Request) => {
  const allowedOrigins = [
   "http://localhost:8080",
   "https://todogenie-8aqo57vvh-princesajjadhussains-projects.vercel.app",
-  "https://todogenie-git-main-princesajjadhussains-projects.vercel.app/"
+  "https://todogenie-git-main-princesajjadhussains-projects.vercel.app/",
+  "https://todogenie-five.vercel.app/"
 ];
 
 const origin = req.headers.get("Origin") ?? "";
