@@ -139,27 +139,25 @@ const corsHeaders = {
       // Attempt to parse directly
       translatedData = JSON.parse(rawTranslatedText);
     } catch (e) {
-      console.warn("ai-translate: Direct JSON parse failed. Attempting markdown extraction or fallback to plain text.", e);
+      console.warn("ai-translate: Direct JSON parse failed. Attempting markdown extraction or fallback to structured plain text.", e);
       const jsonMatch = rawTranslatedText.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch && jsonMatch[1]) {
         try {
           translatedData = JSON.parse(jsonMatch[1]);
           console.log("ai-translate: Successfully parsed JSON from markdown block.");
         } catch (innerError) {
-          console.error("ai-translate: Failed to parse extracted markdown JSON. Falling back to plain text structure.", innerError);
-          // Fallback to plain text structure if markdown JSON parsing fails
-          const [title, ...descriptionParts] = rawTranslatedText.split('\n\n');
+          console.error("ai-translate: Failed to parse extracted markdown JSON. Creating fallback structure.", innerError);
+          // Fallback to a basic structured object if markdown JSON parsing fails
           translatedData = {
-            task: { title: title || "", description: descriptionParts.join('\n\n') || "" },
+            task: { title: rawTranslatedText || "", description: "" },
             subtasks: [],
           };
         }
       } else {
-        console.warn("ai-translate: No markdown JSON block found. Falling back to plain text structure.", rawTranslatedText);
-        // Fallback to plain text structure if no JSON or markdown JSON is found
-        const [title, ...descriptionParts] = rawTranslatedText.split('\n\n');
+        console.warn("ai-translate: No markdown JSON block found. Creating fallback structure from raw text.", rawTranslatedText);
+        // Fallback to a basic structured object if no JSON or markdown JSON is found
         translatedData = {
-          task: { title: title || "", description: descriptionParts.join('\n\n') || "" },
+          task: { title: rawTranslatedText || "", description: "" },
           subtasks: [],
         };
       }
