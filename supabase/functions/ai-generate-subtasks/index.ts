@@ -16,6 +16,7 @@ interface Payload {
   rerun?: boolean;
 }
 
+// List all allowed origins here (your dev and production URLs)
 const allowedOrigins = [
   "http://localhost:8080",
   "https://todogenie-8aqo57vvh-princesajjadhussains-projects.vercel.app",
@@ -23,9 +24,23 @@ const allowedOrigins = [
   "https://todogenie-five.vercel.app"
 ];
 
+// Function to get CORS headers based on request origin
 function getCorsHeaders(origin: string) {
+  // For debugging, log the incoming origin
+  console.log("Incoming Origin header:", origin);
+
+  if (allowedOrigins.includes(origin)) {
+    return {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Vary": "Origin",
+    };
+  }
+
+  // If origin not allowed, send 'null' or consider blocking
   return {
-    "Access-Control-Allow-Origin": allowedOrigins.includes(origin) ? origin : "null",
+    "Access-Control-Allow-Origin": "null",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
@@ -36,7 +51,7 @@ Deno.serve(async (req: Request) => {
   const origin = req.headers.get("Origin") ?? "";
   const corsHeaders = getCorsHeaders(origin);
 
-  // Handle CORS preflight OPTIONS request
+  // Handle preflight OPTIONS request immediately
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -105,6 +120,7 @@ Example output for a task about "Prepare quarterly report":
 
 Now, generate the subtasks for the provided task.`;
 
+    // Helper to call Gemini API and parse JSON array response
     const generateStrictJsonArray = async (system: string, user: string, temperature = 0.2, maxTokens = 1024) => {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -145,6 +161,7 @@ Now, generate the subtasks for the provided task.`;
           console.error(`Attempt ${attempt + 1} failed:`, e);
         }
       }
+      // Fallback subtask if AI fails
       return [{ title: "Outline the work", notes: "Break down the task into steps", estimated_minutes: 30, completed: false }];
     };
 
@@ -153,6 +170,7 @@ Now, generate the subtasks for the provided task.`;
     if (!Array.isArray(subtasks)) throw new Error("AI did not return array");
 
     if (!body.rerun) {
+      // On initial creation, delete old subtasks to avoid duplication
       await supabase.from("subtasks").delete().eq("task_id", body.taskId);
     }
 
@@ -165,7 +183,13 @@ Now, generate the subtasks for the provided task.`;
     }));
 
     if (rows.length === 0) {
-      rows.push({ task_id: body.taskId, title: "Outline the work", notes: "No subtasks generated, please check task details.", estimated_minutes: 30, completed: false });
+      rows.push({
+        task_id: body.taskId,
+        title: "Outline the work",
+        notes: "No subtasks generated, please check task details.",
+        estimated_minutes: 30,
+        completed: false
+      });
     }
 
     const { error } = await supabase.from("subtasks").insert(rows);
