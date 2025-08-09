@@ -128,10 +128,11 @@ const corsHeaders = {
       })),
     };
 
-    const system = `You are a highly accurate translation assistant. Your task is to translate the provided JSON object into the specified language. Translate all string values within the 'task' and 'subtasks' objects. Return ONLY the translated JSON object, and nothing else. Do not include any commentary, notes, or markdown formatting (like \`\`\`json). Ensure the output is valid JSON.`;
+    const system = `You are a highly accurate translation assistant. Your task is to translate the provided JSON object into the specified language. Translate all string values within the 'task' and 'subtasks' objects. Return ONLY the translated JSON object. Do NOT include any extra commentary, notes, explanations, or markdown formatting (like \`\`\`json\`). The output MUST be a valid JSON object.`;
     const user = `Translate the following JSON into ${language}:\n\n${JSON.stringify(dataToTranslate, null, 2)}`;
 
     const rawTranslatedText = await translatePlainText(system, user, 0.1, 2048); // Increased maxTokens for larger JSON
+    console.log("ai-translate: Raw translated text from AI:", rawTranslatedText);
 
     let translatedData;
     try {
@@ -144,15 +145,17 @@ const corsHeaders = {
       if (jsonMatch && jsonMatch[1]) {
         try {
           translatedData = JSON.parse(jsonMatch[1]);
+          console.log("ai-translate: Successfully parsed JSON from markdown block.");
         } catch (innerError) {
           console.error("ai-translate: Failed to parse extracted markdown JSON:", innerError);
           return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: rawTranslatedText }), { status: 500, headers: corsHeaders });
         }
       } else {
-        console.error("ai-translate: Failed to parse translated text as JSON and no markdown JSON block found.", rawTranslatedText);
+        console.error("ai-translate: Failed to parse translated text as JSON and no markdown JSON block found. Raw text:", rawTranslatedText);
         return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: rawTranslatedText }), { status: 500, headers: corsHeaders });
       }
     }
+    console.log("ai-translate: Parsed translated data:", translatedData);
 
     const { data: saved, error } = await supabase.from("translations").insert({ task_id: taskId, language, translated_text: translatedData }).select("*").single();
     if (error) throw error;
