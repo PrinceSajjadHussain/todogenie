@@ -11,12 +11,20 @@ const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 interface Payload { taskId: string; language: string; }
 
 Deno.serve(async (req) => {
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "https://todogenie-8aqo57vvh-princesajjadhussains-projects.vercel.app", // Explicitly set the origin
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Vary": "Origin", // Add Vary header
-  };
+const allowedOrigins = [
+  "http://localhost:8080",
+  "https://todogenie-8aqo57vvh-princesajjadhussains-projects.vercel.app",
+  "https://todogenie-git-main-princesajjadhussains-projects.vercel.app/"
+];
+
+const origin = req.headers.get("Origin") ?? "";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": allowedOrigins.includes(origin) ? origin : "null",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Vary": "Origin",
+};
 
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
