@@ -52,7 +52,7 @@ const parseTranslationData = (translatedText: any, originalTask?: Task) => {
         subtasks: originalTask?.subtasks?.map(st => ({
           id: st.id,
           title: st.title, // Use original titles for subtasks when we only have plain text
-          description: st.notes || st.description || ''
+          description: st.notes || '' // Use 'notes' property from Subtask type
         })) || []
       };
     }
