@@ -16,7 +16,7 @@ const Index = () => {
     <main className="min-h-screen bg-[var(--gradient-surface)]">
       <header className="container py-10">
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent" style={{ backgroundImage: "var(--gradient-primary)" }}>
-          AI To‑Do with Gemini
+          TodoGenie
         </h1>
         <p className="mt-2 text-muted-foreground max-w-2xl">Create tasks, let AI generate actionable subtasks, and translate into any language. Fast, accessible, and persistent with Supabase.</p>
       </header>
