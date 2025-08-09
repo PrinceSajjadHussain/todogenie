@@ -58,7 +58,8 @@ const corsHeaders = {
       }
 
       const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      let text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      
       return text.trim();
     } catch (e) {
       console.error("Failed to fetch translation:", e);
@@ -127,17 +128,30 @@ const corsHeaders = {
       })),
     };
 
-    const system = `You are a highly accurate translation assistant. Your task is to translate the provided JSON object into the specified language. Translate all string values within the 'task' and 'subtasks' objects. Do not add any extra commentary, notes, or explanations—return only the translated JSON object. Ensure the output is valid JSON.`;
+    const system = `You are a highly accurate translation assistant. Your task is to translate the provided JSON object into the specified language. Translate all string values within the 'task' and 'subtasks' objects. Return ONLY the translated JSON object, and nothing else. Do not include any commentary, notes, or markdown formatting (like \`\`\`json). Ensure the output is valid JSON.`;
     const user = `Translate the following JSON into ${language}:\n\n${JSON.stringify(dataToTranslate, null, 2)}`;
 
-    const translatedJsonString = await translatePlainText(system, user, 0.1, 2048); // Increased maxTokens for larger JSON
+    const rawTranslatedText = await translatePlainText(system, user, 0.1, 2048); // Increased maxTokens for larger JSON
 
     let translatedData;
     try {
-      translatedData = JSON.parse(translatedJsonString);
+      // Attempt to parse directly
+      translatedData = JSON.parse(rawTranslatedText);
     } catch (e) {
-      console.error("ai-translate: Failed to parse translated JSON:", e);
-      return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: translatedJsonString }), { status: 500, headers: corsHeaders });
+      console.warn("ai-translate: Direct JSON parse failed, attempting markdown extraction.", e);
+      // If direct parse fails, try to extract from markdown code block
+      const jsonMatch = rawTranslatedText.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          translatedData = JSON.parse(jsonMatch[1]);
+        } catch (innerError) {
+          console.error("ai-translate: Failed to parse extracted markdown JSON:", innerError);
+          return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: rawTranslatedText }), { status: 500, headers: corsHeaders });
+        }
+      } else {
+        console.error("ai-translate: Failed to parse translated text as JSON and no markdown JSON block found.", rawTranslatedText);
+        return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: rawTranslatedText }), { status: 500, headers: corsHeaders });
+      }
     }
 
     const { data: saved, error } = await supabase.from("translations").insert({ task_id: taskId, language, translated_text: translatedData }).select("*").single();
