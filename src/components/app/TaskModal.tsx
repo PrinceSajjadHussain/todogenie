@@ -26,6 +26,19 @@ export default function TaskModal({ open, onOpenChange, task }: Props) {
     return task?.translations?.find(t => t.language === activeTranslation) ?? null;
   }, [activeTranslation, task?.translations]);
 
+  const parsedTranslationData = useMemo(() => {
+    if (!translation || !translation.translated_text) return null;
+    try {
+      // If translated_text is a string, parse it as JSON. Otherwise, it's already an object.
+      return typeof translation.translated_text === 'string'
+        ? JSON.parse(translation.translated_text)
+        : translation.translated_text;
+    } catch (e) {
+      console.error("Failed to parse translated_text as JSON:", e);
+      return null;
+    }
+  }, [translation]);
+
   if (!task) return null;
 
   // Log the task object and its subtasks when the modal opens
@@ -119,10 +132,26 @@ export default function TaskModal({ open, onOpenChange, task }: Props) {
                     </Button>
                   ))}
                 </div>
-                {translation && (
+                {parsedTranslationData && (
                   <div className="p-4 rounded-lg bg-muted border">
-                    <h5 className="font-semibold text-md">{translation.language} Translation</h5>
-                    <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{translation.translated_text}</p>
+                    <h5 className="font-semibold text-md">{translation?.language} Translation</h5>
+                    {parsedTranslationData.task && (
+                      <>
+                        <p className="mt-2 font-medium">{parsedTranslationData.task.title}</p>
+                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{parsedTranslationData.task.description}</p>
+                      </>
+                    )}
+                    {parsedTranslationData.subtasks && parsedTranslationData.subtasks.length > 0 && (
+                      <div className="mt-4">
+                        <h6 className="font-semibold text-sm mb-2">Translated Subtasks:</h6>
+                        {parsedTranslationData.subtasks.map((s: any) => (
+                          <div key={s.id} className="mb-2">
+                            <p className="font-normal text-sm">{s.title}</p>
+                            {s.description && <p className="text-xs text-muted-foreground">{s.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
