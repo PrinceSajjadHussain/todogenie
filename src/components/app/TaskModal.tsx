@@ -15,6 +15,54 @@ interface Props {
   task: Task | null;
 }
 
+// Helper function to safely parse translation data
+const parseTranslationData = (translatedText: any, originalTask?: Task) => {
+  // If it's already an object (new format), return it directly
+  if (typeof translatedText === 'object' && translatedText !== null) {
+    // Validate it has the expected structure
+    if (translatedText.task && Array.isArray(translatedText.subtasks)) {
+      return translatedText;
+    }
+  }
+
+  // If it's a string, try to parse as JSON first
+  if (typeof translatedText === 'string') {
+    try {
+      const parsed = JSON.parse(translatedText);
+      // Validate the parsed object has the expected structure
+      if (parsed && typeof parsed === 'object' && parsed.task && Array.isArray(parsed.subtasks)) {
+        return parsed;
+      }
+    } catch (error) {
+      console.warn('Translation is not valid JSON, treating as plain text:', error);
+      
+      // Create structured data from plain text
+      const plainText = translatedText.trim();
+      
+      // Try to split by newlines to extract title and description
+      const lines = plainText.split('\n').filter(line => line.trim());
+      const title = lines[0] || plainText;
+      const description = lines.slice(1).join('\n').trim();
+
+      return {
+        task: {
+          title: title,
+          description: description
+        },
+        subtasks: originalTask?.subtasks?.map(st => ({
+          id: st.id,
+          title: st.title, // Use original titles for subtasks when we only have plain text
+          description: st.notes || st.description || ''
+        })) || []
+      };
+    }
+  }
+
+  // Fallback: return null if we can't parse anything
+  console.error('Could not parse translation data:', translatedText);
+  return null;
+};
+
 export default function TaskModal({ open, onOpenChange, task }: Props) {
   const [lang, setLang] = useState("");
   const [newSubtask, setNewSubtask] = useState({ title: "", notes: "" });
@@ -28,18 +76,9 @@ export default function TaskModal({ open, onOpenChange, task }: Props) {
 
   const parsedTranslationData = useMemo(() => {
     if (!translation || !translation.translated_text) return null;
-    // If translated_text is already an object (TranslatedTaskData), return it directly.
-    // Otherwise, attempt to parse it as JSON.
-    if (typeof translation.translated_text !== 'string') {
-      return translation.translated_text;
-    }
-    try {
-      return JSON.parse(translation.translated_text);
-    } catch (e) {
-      console.error("Failed to parse translated_text as JSON:", e);
-      return null;
-    }
-  }, [translation]);
+    
+    return parseTranslationData(translation.translated_text, task);
+  }, [translation, task]);
 
   if (!task) return null;
 
@@ -140,7 +179,9 @@ export default function TaskModal({ open, onOpenChange, task }: Props) {
                     {parsedTranslationData?.task && (
                       <>
                         <p className="mt-2 font-medium">{parsedTranslationData.task.title}</p>
-                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{parsedTranslationData.task.description}</p>
+                        {parsedTranslationData.task.description && (
+                          <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{parsedTranslationData.task.description}</p>
+                        )}
                       </>
                     )}
                     {parsedTranslationData?.subtasks && parsedTranslationData.subtasks.length > 0 && (
@@ -154,6 +195,12 @@ export default function TaskModal({ open, onOpenChange, task }: Props) {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+                {!parsedTranslationData && translation && (
+                  <div className="p-4 rounded-lg bg-muted border">
+                    <h5 className="font-semibold text-md">{translation.language} Translation</h5>
+                    <p className="mt-2 text-sm text-muted-foreground">Unable to parse translation data. Please try translating again.</p>
                   </div>
                 )}
               </div>
