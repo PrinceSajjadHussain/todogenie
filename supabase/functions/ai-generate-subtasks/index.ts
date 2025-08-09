@@ -1,7 +1,6 @@
 // @ts-nocheck
 // Supabase Edge Function: ai-generate-subtasks
 // Requires GEMINI_API_KEY secret configured in Supabase project
-// Policy: tables must allow inserts from anon or use service role key
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -17,72 +16,30 @@ interface Payload {
   rerun?: boolean;
 }
 
-Deno.serve(async (req: Request) => {
- const allowedOrigins = [
+const allowedOrigins = [
   "http://localhost:8080",
   "https://todogenie-8aqo57vvh-princesajjadhussains-projects.vercel.app",
   "https://todogenie-git-main-princesajjadhussains-projects.vercel.app",
   "https://todogenie-five.vercel.app"
 ];
 
-const origin = req.headers.get("Origin") ?? "";
+function getCorsHeaders(origin: string) {
+  return {
+    "Access-Control-Allow-Origin": allowedOrigins.includes(origin) ? origin : "null",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+}
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": allowedOrigins.includes(origin) ? origin : "null",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Credentials": "true",  
-  "Vary": "Origin",
-};
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("Origin") ?? "";
+  const corsHeaders = getCorsHeaders(origin);
 
-
-  // Handle CORS preflight requests
+  // Handle CORS preflight OPTIONS request
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
-  const generateStrictJsonArray = async (system: string, user: string, temperature = 0.2, maxTokens = 1024) => {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: system }] },
-            contents: [{ role: "user", parts: [{ text: user }] }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature,
-              maxOutputTokens: maxTokens,
-            },
-            safetySettings: [
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            ],
-          }),
-        });
-
-        if (!res.ok) {
-          console.error(`Gemini API error: ${res.status} ${res.statusText}`, await res.text());
-          continue;
-        }
-
-        const data = await res.json();
-        const json = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        console.log("Gemini API response (raw JSON):", json);
-        if (json) {
-          const parsed = JSON.parse(json);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (e) {
-        console.error(`Attempt ${attempt + 1} failed:`, e);
-      }
-    }
-    return [{ title: "Outline the work", notes: "Break down the task into steps", estimated_minutes: 30, completed: false }];
-  };
 
   try {
     console.log("ai-generate-subtasks function invoked.");
@@ -93,7 +50,6 @@ const corsHeaders = {
       return new Response(JSON.stringify({ error: "API key not configured on server" }), { status: 500, headers: corsHeaders });
     }
 
-    // Safely parse the request body
     let body: Payload;
     let rawBodyText: string;
     try {
@@ -110,9 +66,13 @@ const corsHeaders = {
       return new Response(JSON.stringify({ error: "Invalid request body. Expected JSON." }), { status: 400, headers: corsHeaders });
     }
 
-    if (!body?.taskId) return new Response(JSON.stringify({ error: "taskId is required" }), { status: 400, headers: corsHeaders });
+    if (!body?.taskId) {
+      return new Response(JSON.stringify({ error: "taskId is required" }), { status: 400, headers: corsHeaders });
+    }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: req.headers.get("Authorization")! } } });
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: req.headers.get("Authorization")! } }
+    });
 
     let { title, description, priority } = body;
     if (!title) {
@@ -122,7 +82,6 @@ const corsHeaders = {
       priority = data?.priority;
     }
 
-    // Ensure title is always a string, even if fetched as null/undefined
     const taskTitle = title || "Untitled Task";
 
     const system = "You are an expert project manager. Your role is to break down tasks into smaller, actionable subtasks. You must output a JSON array of subtask objects, and nothing else.";
@@ -146,14 +105,54 @@ Example output for a task about "Prepare quarterly report":
 
 Now, generate the subtasks for the provided task.`;
 
+    const generateStrictJsonArray = async (system: string, user: string, temperature = 0.2, maxTokens = 1024) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: system }] },
+              contents: [{ role: "user", parts: [{ text: user }] }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature,
+                maxOutputTokens: maxTokens,
+              },
+              safetySettings: [
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+              ],
+            }),
+          });
+
+          if (!res.ok) {
+            console.error(`Gemini API error: ${res.status} ${res.statusText}`, await res.text());
+            continue;
+          }
+
+          const data = await res.json();
+          const json = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          console.log("Gemini API response (raw JSON):", json);
+          if (json) {
+            const parsed = JSON.parse(json);
+            if (Array.isArray(parsed)) return parsed;
+          }
+        } catch (e) {
+          console.error(`Attempt ${attempt + 1} failed:`, e);
+        }
+      }
+      return [{ title: "Outline the work", notes: "Break down the task into steps", estimated_minutes: 30, completed: false }];
+    };
+
     const subtasks = await generateStrictJsonArray(system, user, 0.2, 1024);
 
     if (!Array.isArray(subtasks)) throw new Error("AI did not return array");
 
-    if (body.rerun) {
-      // In rerun, we don't want to delete old subtasks, just append new ones.
-    } else {
-      // On initial creation, delete any existing subtasks to prevent duplicates from retries.
+    if (!body.rerun) {
       await supabase.from("subtasks").delete().eq("task_id", body.taskId);
     }
 
