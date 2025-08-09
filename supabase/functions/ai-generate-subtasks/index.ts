@@ -24,12 +24,20 @@ const allowedOrigins = [
   "https://todogenie-five.vercel.app"
 ];
 
+// Normalize origin string for safe comparison
+function normalizeOrigin(origin: string) {
+  return origin.toLowerCase().replace(/\/$/, "");
+}
+
 // Function to get CORS headers based on request origin
 function getCorsHeaders(origin: string) {
-  // For debugging, log the incoming origin
-  console.log("Incoming Origin header:", origin);
+  const normalizedOrigin = normalizeOrigin(origin);
+  const normalizedAllowed = allowedOrigins.map(normalizeOrigin);
 
-  if (allowedOrigins.includes(origin)) {
+  console.log("Incoming Origin header:", origin);
+  console.log("Normalized Origin header:", normalizedOrigin);
+
+  if (normalizedAllowed.includes(normalizedOrigin)) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
