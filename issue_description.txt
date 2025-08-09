@@ -1,0 +1,32 @@
+**Issue Description:**
+
+The application is failing to display translated task and subtask information, resulting in a `SyntaxError: Unexpected token 'X', "... is not valid JSON"` in the frontend. This error occurs because the `translated_text` column in the `translations` table in Supabase is storing plain text strings (e.g., "Organiser une réunion d'équipe...") instead of the expected JSON objects.
+
+**Files Involved:**
+
+1.  `supabase/functions/ai-translate/index.ts`: This Supabase Edge Function is responsible for fetching task and subtask data, sending it to an AI model for translation, and then saving the translated content to the `translations` table. The issue here is that despite attempts to enforce JSON output from the AI and implement robust parsing/fallback, plain text is still occasionally being saved to the database.
+
+2.  `src/components/app/TaskModal.tsx`: This React component is responsible for displaying the task details, including translations. It attempts to parse the `translated_text` from the `translations` table as a JSON object. When it receives a plain string, the `JSON.parse()` call fails, leading to the `SyntaxError`.
+
+3.  `src/types/todo.ts`: This file defines the TypeScript interfaces for the application's data structures, including `Task`, `Subtask`, and `Translation`. The `Translation` interface's `translated_text` property was updated to expect a `TranslatedTaskData` object or a `string`, but the runtime data in the database is not consistently matching the `TranslatedTaskData` structure.
+
+**Root Cause:**
+
+The primary cause is the inconsistency in the AI model's output. While the prompt instructs the AI to return only a JSON object, it sometimes returns plain translated text. The fallback logic in `ai-translate/index.ts` was intended to handle this by structuring the plain text into a JSON object, but it seems to be failing or not being triggered correctly in all scenarios, leading to malformed data being saved to the `translations` table. Additionally, existing old, non-JSON entries in the `translations` table continue to cause errors when fetched.
+
+**Desired Achievement:**
+
+The goal is to ensure that when a user clicks the "Translate" button for a task:
+
+1.  The `ai-translate` Supabase Edge Function successfully fetches the main task's title and description, along with all its associated subtasks' titles and descriptions.
+2.  This combined data is sent to the AI model for translation into the specified language.
+3.  The AI model returns a JSON object containing the translated task title, description, and an array of translated subtasks (each with their ID, title, and description).
+4.  If the AI model *fails* to return a valid JSON object (e.g., returns plain text or malformed JSON), the `ai-translate` function should robustly handle this by creating a fallback JSON structure. This fallback structure should contain the raw translated text as the main task's title, an empty description, and an empty subtasks array. This ensures that *something* valid (a JSON object) is always saved to the `translated_text` column.
+5.  The `translated_text` (which is now guaranteed to be a JSON object) is successfully saved to the `translations` table in Supabase.
+6.  The `TaskModal.tsx` component correctly retrieves and parses this JSON object from the `translations` table.
+7.  The `TaskModal.tsx` component then displays the translated task title, description, and all translated subtasks (if available) within the modal, without any `SyntaxError`.
+8.  The overall translation feature works seamlessly, providing accurate and structured translations for both tasks and subtasks.
+
+**Action Required from User:**
+
+After any code changes, it is **CRUCIAL** to **manually clear all existing entries in your Supabase `translations` table** from your Supabase dashboard. This will remove any old, malformed entries that are causing the frontend parsing errors and ensure that only new, correctly formatted JSON translations are stored.
