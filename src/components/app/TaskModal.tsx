@@ -28,11 +28,13 @@ export default function TaskModal({ open, onOpenChange, task }: Props) {
 
   const parsedTranslationData = useMemo(() => {
     if (!translation || !translation.translated_text) return null;
+    // If translated_text is already an object (TranslatedTaskData), return it directly.
+    // Otherwise, attempt to parse it as JSON.
+    if (typeof translation.translated_text !== 'string') {
+      return translation.translated_text;
+    }
     try {
-      // If translated_text is a string, parse it as JSON. Otherwise, it's already an object.
-      return typeof translation.translated_text === 'string'
-        ? JSON.parse(translation.translated_text)
-        : translation.translated_text;
+      return JSON.parse(translation.translated_text);
     } catch (e) {
       console.error("Failed to parse translated_text as JSON:", e);
       return null;
@@ -135,13 +137,13 @@ export default function TaskModal({ open, onOpenChange, task }: Props) {
                 {parsedTranslationData && (
                   <div className="p-4 rounded-lg bg-muted border">
                     <h5 className="font-semibold text-md">{translation?.language} Translation</h5>
-                    {parsedTranslationData.task && (
+                    {parsedTranslationData?.task && (
                       <>
                         <p className="mt-2 font-medium">{parsedTranslationData.task.title}</p>
                         <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{parsedTranslationData.task.description}</p>
                       </>
                     )}
-                    {parsedTranslationData.subtasks && parsedTranslationData.subtasks.length > 0 && (
+                    {parsedTranslationData?.subtasks && parsedTranslationData.subtasks.length > 0 && (
                       <div className="mt-4">
                         <h6 className="font-semibold text-sm mb-2">Translated Subtasks:</h6>
                         {parsedTranslationData.subtasks.map((s: any) => (

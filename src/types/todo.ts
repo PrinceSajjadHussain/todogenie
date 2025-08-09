@@ -10,11 +10,25 @@ export interface Subtask {
   created_at?: string;
 }
 
+export interface TranslatedSubtask {
+  id: string;
+  title: string;
+  description?: string | null;
+}
+
+export interface TranslatedTaskData {
+  task: {
+    title: string;
+    description?: string | null;
+  };
+  subtasks: TranslatedSubtask[];
+}
+
 export interface Translation {
   id: string;
   task_id: string;
   language: string;
-  translated_text: string;
+  translated_text: TranslatedTaskData | string; // Can be string if parsing failed, but should be TranslatedTaskData
   created_at?: string;
 }
 
