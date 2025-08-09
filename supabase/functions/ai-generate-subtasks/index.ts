@@ -19,7 +19,7 @@ interface Payload {
 
 Deno.serve(async (req: Request) => {
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "https://todogenie-five.vercel.app", // Explicitly set the origin
+    "Access-Control-Allow-Origin": "*", // Explicitly set the origin
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
