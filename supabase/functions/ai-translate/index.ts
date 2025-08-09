@@ -103,23 +103,44 @@ const corsHeaders = {
       return new Response(JSON.stringify({ error: "task_not_found" }), { status: 404, headers: corsHeaders });
     }
 
+    const { data: subtasks, error: sErr } = await supabase.from("subtasks").select("id, title, description").eq("task_id", taskId);
+    if (sErr) {
+      console.error("ai-translate: Error fetching subtasks:", sErr);
+      return new Response(JSON.stringify({ error: "subtasks_fetch_failed" }), { status: 500, headers: corsHeaders });
+    }
+
     const { data: cached } = await supabase.from("translations").select("*").eq("task_id", taskId).eq("language", language).maybeSingle();
     if (cached) {
       console.log("ai-translate: Returning cached translation.");
       return new Response(JSON.stringify({ cached: true, translation: cached }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Ensure title and description are strings for translation
-    const taskTitle = task.title || "";
-    const taskDescription = task.description || "";
-    const textToTranslate = `${taskTitle}${taskDescription ? `\n\n${taskDescription}` : ""}`;
+    const dataToTranslate = {
+      task: {
+        title: task.title || "",
+        description: task.description || "",
+      },
+      subtasks: subtasks.map((st: any) => ({
+        id: st.id,
+        title: st.title || "",
+        description: st.description || "",
+      })),
+    };
 
-    const system = "You are a highly accurate translation assistant. Your task is to translate the given text into the specified language. Do not add any extra commentary, notes, or explanations—return only the translated text.";
-    const user = `Translate the following text into ${language}:\n\n${textToTranslate}`;
+    const system = `You are a highly accurate translation assistant. Your task is to translate the provided JSON object into the specified language. Translate all string values within the 'task' and 'subtasks' objects. Do not add any extra commentary, notes, or explanations—return only the translated JSON object. Ensure the output is valid JSON.`;
+    const user = `Translate the following JSON into ${language}:\n\n${JSON.stringify(dataToTranslate, null, 2)}`;
 
-    const translated = await translatePlainText(system, user, 0.1, 1024);
+    const translatedJsonString = await translatePlainText(system, user, 0.1, 2048); // Increased maxTokens for larger JSON
 
-    const { data: saved, error } = await supabase.from("translations").insert({ task_id: taskId, language, translated_text: translated }).select("*").single();
+    let translatedData;
+    try {
+      translatedData = JSON.parse(translatedJsonString);
+    } catch (e) {
+      console.error("ai-translate: Failed to parse translated JSON:", e);
+      return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: translatedJsonString }), { status: 500, headers: corsHeaders });
+    }
+
+    const { data: saved, error } = await supabase.from("translations").insert({ task_id: taskId, language, translated_text: translatedData }).select("*").single();
     if (error) throw error;
 
     return new Response(JSON.stringify({ cached: false, translation: saved }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
