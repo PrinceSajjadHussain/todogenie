@@ -139,30 +139,43 @@ const corsHeaders = {
       // Attempt to parse directly
       translatedData = JSON.parse(rawTranslatedText);
     } catch (e) {
-      console.warn("ai-translate: Direct JSON parse failed, attempting markdown extraction.", e);
-      // If direct parse fails, try to extract from markdown code block
+      console.warn("ai-translate: Direct JSON parse failed. Attempting markdown extraction or fallback to plain text.", e);
       const jsonMatch = rawTranslatedText.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch && jsonMatch[1]) {
         try {
           translatedData = JSON.parse(jsonMatch[1]);
           console.log("ai-translate: Successfully parsed JSON from markdown block.");
         } catch (innerError) {
-          console.error("ai-translate: Failed to parse extracted markdown JSON:", innerError);
-          return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: rawTranslatedText }), { status: 500, headers: corsHeaders });
+          console.error("ai-translate: Failed to parse extracted markdown JSON. Falling back to plain text structure.", innerError);
+          // Fallback to plain text structure if markdown JSON parsing fails
+          const [title, ...descriptionParts] = rawTranslatedText.split('\n\n');
+          translatedData = {
+            task: { title: title || "", description: descriptionParts.join('\n\n') || "" },
+            subtasks: [],
+          };
         }
       } else {
-        console.error("ai-translate: Failed to parse translated text as JSON and no markdown JSON block found. Raw text:", rawTranslatedText);
-        return new Response(JSON.stringify({ error: "translation_parse_failed", raw_translation: rawTranslatedText }), { status: 500, headers: corsHeaders });
+        console.warn("ai-translate: No markdown JSON block found. Falling back to plain text structure.", rawTranslatedText);
+        // Fallback to plain text structure if no JSON or markdown JSON is found
+        const [title, ...descriptionParts] = rawTranslatedText.split('\n\n');
+        translatedData = {
+          task: { title: title || "", description: descriptionParts.join('\n\n') || "" },
+          subtasks: [],
+        };
       }
     }
-    console.log("ai-translate: Parsed translated data:", translatedData);
+    console.log("ai-translate: Final parsed/structured translated data:", translatedData);
 
     const { data: saved, error } = await supabase.from("translations").insert({ task_id: taskId, language, translated_text: translatedData }).select("*").single();
-    if (error) throw error;
+    if (error) {
+      console.error("ai-translate: Error saving translation to DB:", error);
+      throw error;
+    }
+    console.log("ai-translate: Successfully saved translation to DB:", saved);
 
     return new Response(JSON.stringify({ cached: false, translation: saved }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
-    console.error(e);
+    console.error("ai-translate: Unhandled error:", e);
     return new Response(JSON.stringify({ error: "translation_failed" }), { status: 500, headers: corsHeaders });
   }
 });
