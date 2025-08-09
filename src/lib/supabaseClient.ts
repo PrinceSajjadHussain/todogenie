@@ -4,7 +4,7 @@ export const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string
 export const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
 const missingMsg =
-  "Supabase is not configured. Please connect your Lovable project to Supabase (green Supabase button) or set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY. The anon key is safe to expose in the frontend.";
+  "Supabase is not configured. Please connect your project to Supabase (green Supabase button) or set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY. The anon key is safe to expose in the frontend.";
 
 const createMissingProxy = () =>
   new Proxy(
