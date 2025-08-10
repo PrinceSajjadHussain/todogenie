@@ -75,7 +75,7 @@ export function useTasks(filters?: TaskFilters) {
 
       return data as Task;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: TASKS_KEY(filters) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   const updateTask = useMutation({
